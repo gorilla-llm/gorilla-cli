@@ -23,14 +23,14 @@ import sys
 from halo import Halo
 import go_questionary
 
-__version__ = "0.0.6"  # current version
+__version__ = "0.0.8"  # current version
 SERVER_URL = "http://34.135.112.197:8000"
 UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
 USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 WELCOME_TEXT = """🦍 Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
 
-Simply use `go <your desired operation>` and Gorilla will do the rest. For instance:
+Simply use `gorilla <your desired operation>` and Gorilla will do the rest. For instance:
     gorilla what is the path of my current directory
     gorilla list all my GCP instances
 

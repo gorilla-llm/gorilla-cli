@@ -16,7 +16,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="gorilla-cli",
-    version="0.0.7",
+    version="0.0.8",
     url="https://github.com/gorilla-llm/gorilla-cli",
     author="Shishir Patil, Tianjun Zhang",
     author_email="sgp@berkeley.edu, tianjunz@berkeley.edu",
