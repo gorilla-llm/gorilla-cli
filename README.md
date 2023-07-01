@@ -39,6 +39,22 @@ Gorilla CLI will then generate potential commands. Simply use the arrow keys to 
    ls -al
 ```
 
+Some more examples
+
+```bash
+$ gorilla list all my GCP instances
+» gcloud compute instances list --format="table(name,zone,status)"
+  gcloud compute instances list --format table
+  gcloud compute instances list --format="table(name, zone, machineType, status
+```
+```bash
+$ get the image ids of all pods running in all namespaces in kubernetes
+» kubectl get pods --all-namespaces -o jsonpath="{..imageID}"
+  kubectl get pods --all --namespaces
+  kubectl get pod -A -o jsonpath='{range .items[*]}{"\n"}{.metadata.name}{"\t"}{.spec.containers[].image}{"\n"}{end}'
+```
+
+
 ## How It Works
 
 Gorilla-CLI fuses the capabilities of various Language Learning Models (LLMs) like [Gorilla LLM](https://github.com/ShishirPatil/gorilla/), OpenAI's GPT-4, Claude v1, and others to present a user-friendly command-line interface. For each user query, we gather responses from all contributing LLMs, filter, sort, and present you with the most relevant options. 
