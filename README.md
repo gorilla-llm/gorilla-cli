@@ -45,7 +45,7 @@ Some more examples
 $ gorilla list all my GCP instances
 » gcloud compute instances list --format="table(name,zone,status)"
   gcloud compute instances list --format table
-  gcloud compute instances list --format="table(name, zone, machineType, status
+  gcloud compute instances list --format="table(name, zone, machineType, status)"
 ```
 ```bash
 $ get the image ids of all pods running in all namespaces in kubernetes
