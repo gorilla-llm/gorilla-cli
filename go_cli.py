@@ -23,7 +23,7 @@ import sys
 from halo import Halo
 import go_questionary
 
-__version__ = "0.0.8"  # current version
+__version__ = "0.0.9"  # current version
 SERVER_URL = "http://34.135.112.197:8000"
 UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
 USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
@@ -31,14 +31,15 @@ ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 WELCOME_TEXT = """🦍 Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
 
 Simply use `gorilla <your desired operation>` and Gorilla will do the rest. For instance:
-    gorilla what is the path of my current directory
+    gorilla generate 100 random characters into a file called test.txt
+    gorilla get the image ids of all pods running in all namespaces in kubernetes
     gorilla list all my GCP instances
 
-Created as a research prototype by UC Berkeley, Gorilla-CLI ensures user control and privacy:
+A research prototype from UC Berkeley, Gorilla-CLI ensures user control and privacy:
  - Commands are executed only with explicit user approval.
  - While queries and error (stderr) logs are used to refine our model, we NEVER gather output (stdout) data.
 
-Visit us at github.com/gorilla-llm/gorilla-cli and start talking to your CLI!"""
+Visit github.com/gorilla-llm/gorilla-cli for examples and to learn more!"""
 
 
 def check_for_updates():
@@ -73,7 +74,9 @@ def get_user_id():
     try:
         with open(USERID_FILE, "r") as f:
             user_id = str(f.read())
-            assert user_id != ""
+            # If file found and user_id is blank. User hasn't setup github
+            if user_id == "":
+                user_id = str(uuid.uuid4())
         return user_id
     except FileNotFoundError:
         try:

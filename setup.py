@@ -16,12 +16,12 @@ from setuptools import setup, find_packages
 
 setup(
     name="gorilla-cli",
-    version="0.0.8",
+    version="0.0.9",
     url="https://github.com/gorilla-llm/gorilla-cli",
     author="Shishir Patil, Tianjun Zhang",
     author_email="sgp@berkeley.edu, tianjunz@berkeley.edu",
     description="LLMs for CLI",
-    long_description=open("README.md").read(),
+    long_description=open("README.md", "r", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     py_modules=["go_cli"],
     packages=find_packages(include=["*", "go_questionary.*"]),
