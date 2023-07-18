@@ -1,6 +1,8 @@
 # Gorilla CLI
 
-Gorilla CLI revolutionizes your command-line interactions with a user-centric tool that understands natural language commands. Simply state your objective, and Gorilla CLI will generate potential commands for execution. No more need to recall intricate command-line arguments!
+<img src="https://github.com/ShishirPatil/gorilla/blob/gh-pages/assets/img/logo.png" width=50% height=50%>
+
+Gorilla CLI powers your command-line interactions with a user-centric tool. Simply state your objective, and Gorilla CLI will generate potential commands for execution. Gorilla today supports ~1500 APIs, including Kubernetes, AWS, GCP,  Azure, GitHub, Conda, Curl, Sed, and many more. No more recalling intricate CLI arguments! 🦍
 
 Developed by UC Berkeley as a research prototype, Gorilla-CLI prioritizes user control and confidentiality:
  - Commands are executed solely with your explicit approval.
@@ -16,27 +18,27 @@ pip install gorilla-cli
 
 ## Usage
 
-Activate Gorilla CLI with a straightforward `gorilla` followed by your command in plain English.
+Activate Gorilla CLI with `gorilla` followed by your task in plain English.
 
-For instance, to list all files in the current directory, type:
+For instance, to generate a file with 100 random characters, type:
 
 ```bash
-$ gorilla I want to list all files in the current directory
+$ gorilla generate 100 random characters into a file called test.txt
 ```
 
 or if you prefer, you can use quotes to avoid issues with string parsing:
 
 ```bash
-$ gorilla "I want to list all files in the current directory" 
+$ gorilla "generate 100 random characters into a file called test.txt"
 ```
 
-Gorilla CLI will then generate potential commands. Simply use the arrow keys to navigate through the options, then press enter to execute the chosen command. 
+Gorilla CLI will then generate candidate commands. Use the arrow keys to navigate through the options, then press enter to execute the chosen command. 
 
-```
+```bash
 🦍  Welcome to Gorilla. Use arrows to select
- » ls
-   ls -l
-   ls -al
+ » cat /dev/urandom | env LC_ALL=C tr -dc 'a-zA-Z0-9' | head -c 100 > test.txt 
+   echo $(head /dev/urandom | LC_CTYPE=C tr -dc 'a-zA-Z0-9' | dd bs=100 count=1) > test.txt
+   dd if=/dev/urandom bs=1 count=100 of=test.txt
 ```
 
 Some more examples
@@ -48,7 +50,7 @@ $ gorilla list all my GCP instances
   gcloud compute instances list --format="table(name, zone, machineType, status)"
 ```
 ```bash
-$ get the image ids of all pods running in all namespaces in kubernetes
+$ gorilla get the image ids of all pods running in all namespaces in kubernetes
 » kubectl get pods --all-namespaces -o jsonpath="{..imageID}"
   kubectl get pods --all --namespaces
   kubectl get pod -A -o jsonpath='{range .items[*]}{"\n"}{.metadata.name}{"\t"}{.spec.containers[].image}{"\n"}{end}'
