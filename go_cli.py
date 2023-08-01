@@ -28,7 +28,8 @@ SERVER_URL = "http://34.135.112.197:8000"
 UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
 USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
-WELCOME_TEXT = """🦍 Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
+GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
+WELCOME_TEXT = f"""{GORILLA_EMOJI}Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
 
 Simply use `gorilla <your desired operation>` and Gorilla will do the rest. For instance:
     gorilla generate 100 random characters into a file called test.txt
@@ -133,7 +134,7 @@ def main():
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
 
-    with Halo(text="🦍 Loading", spinner="dots"):
+    with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
         try:
             data_json = {
                 "user_id": user_id,
