@@ -72,3 +72,13 @@ async def activate_prompt_toolkit_async_mode() -> None:
         use_asyncio_event_loop()
 
     ACTIVATED_ASYNC_MODE = True
+
+
+def try_encode_gorilla() -> bool:
+    """Attempts to encode the emoji to see if we can or not."""
+    try:
+        "🦍".encode('cp1252')  # Testing whether emoji encoding works
+    except UnicodeEncodeError:
+        return False
+    else:
+        return True

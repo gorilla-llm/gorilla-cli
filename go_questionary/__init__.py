@@ -21,6 +21,8 @@ from go_questionary.prompts.confirm import confirm
 from go_questionary.prompts.password import password
 from go_questionary.prompts.rawselect import rawselect
 
+# Utilities
+from go_questionary.utils import try_encode_gorilla
 
 __version__ = go_questionary.version.__version__
 
@@ -48,4 +50,5 @@ __all__ = [
     "Separator",
     "Validator",
     "ValidationError",
+    "try_encode_gorilla"
 ]
