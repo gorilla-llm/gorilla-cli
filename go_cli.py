@@ -157,7 +157,9 @@ def main():
             "", choices=commands, instruction=""
         ).ask()
         exit_condition = execute_command(selected_command)
-
+        if selected_command==None:
+            print('Process Exited')
+            exit();
         # Commands failed / succeeded?
         try:
             response = requests.post(
