@@ -156,10 +156,10 @@ def main():
         selected_command = go_questionary.select(
             "", choices=commands, instruction=""
         ).ask()
-        exit_condition = execute_command(selected_command)
         if selected_command==None:
             print('Process Exited')
             exit();
+        exit_condition = execute_command(selected_command)
         # Commands failed / succeeded?
         try:
             response = requests.post(
