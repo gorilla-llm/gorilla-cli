@@ -121,7 +121,7 @@ def get_user_id():
 def main():
     def execute_command(cmd):
         process = subprocess.run(cmd, shell=True, stderr=subprocess.PIPE)
-        error_msg = process.stderr.decode("utf-8")
+        error_msg = process.stderr.decode("utf-8", "ignore")
         if error_msg:
             print(f"{error_msg}")
             return error_msg
