@@ -1,12 +1,14 @@
 # Gorilla CLI
 
-<img src="https://github.com/ShishirPatil/gorilla/blob/gh-pages/assets/img/logo.png" width=50% height=50%>
+<img src="https://github.com/ShishirPatil/gorilla/blob/gh-pages/assets/img/logo.png" width=20% height=20%>
 
 Gorilla CLI powers your command-line interactions with a user-centric tool. Simply state your objective, and Gorilla CLI will generate potential commands for execution. Gorilla today supports ~1500 APIs, including Kubernetes, AWS, GCP,  Azure, GitHub, Conda, Curl, Sed, and many more. No more recalling intricate CLI arguments! 🦍
 
 Developed by UC Berkeley as a research prototype, Gorilla-CLI prioritizes user control and confidentiality:
  - Commands are executed solely with your explicit approval.
  - While we utilize queries and error logs (stderr) for model enhancement, we NEVER collect output data (stdout).
+
+![gorilla-cli](https://github.com/gorilla-llm/gorilla-cli/assets/30296397/f448c04b-e2a1-4560-b040-37f9840c356d)
 
 ## Getting Started
 
