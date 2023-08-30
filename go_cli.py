@@ -23,8 +23,8 @@ import sys
 from halo import Halo
 import go_questionary
 
-__version__ = "0.0.9"  # current version
-SERVER_URL = "http://34.135.112.197:8000"
+__version__ = "0.0.10"  # current version
+SERVER_URL = "https://cli.gorilla-llm.com"
 UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
 USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
