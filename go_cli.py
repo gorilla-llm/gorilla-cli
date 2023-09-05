@@ -29,7 +29,8 @@ UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
 USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
-WELCOME_TEXT = f"""{GORILLA_EMOJI}Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
+WELCOME_TEXT = f"""===***===
+{GORILLA_EMOJI}Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
 
 Simply use `gorilla <your desired operation>` and Gorilla will do the rest. For instance:
     gorilla generate 100 random characters into a file called test.txt
@@ -40,7 +41,8 @@ A research prototype from UC Berkeley, Gorilla-CLI ensures user control and priv
  - Commands are executed only with explicit user approval.
  - While queries and error (stderr) logs are used to refine our model, we NEVER gather output (stdout) data.
 
-Visit github.com/gorilla-llm/gorilla-cli for examples and to learn more!"""
+Visit github.com/gorilla-llm/gorilla-cli for examples and to learn more!
+===***==="""
 
 
 def check_for_updates():
@@ -80,6 +82,7 @@ def get_user_id():
                 user_id = str(uuid.uuid4())
         return user_id
     except FileNotFoundError:
+        # First time
         try:
             user_id = (
                 subprocess.check_output(["git", "config", "--global", "user.email"])
@@ -95,27 +98,35 @@ def get_user_id():
             if response in ["n", "no"]:
                 user_id = str(uuid.uuid4())
         except Exception as e:
+            # If git not installed then generate and use a random user id
             issue_title = urllib.parse.quote(
-                f"Problem with generating userid: {str(e)}"
+                f"Problem with generating userid from GitHub: {str(e)}"
             )
             issue_body = urllib.parse.quote(f"Unable to generate userid: {str(e)}")
-            print("Unable to generate userid:", e)
             print(
-                f"Please run 'go <command>' again. If the problem persists, please raise an issue: \
+                f"Git not installed, so cannot import userid from Git. \n Please run 'gorilla <command>' again after initializing git. \n Will use a random user-id. If the problem persists, please raise an issue: \
                   {ISSUE_URL}?title={issue_title}&body={issue_body}"
             )
+            user_id = str(uuid.uuid4())
+            print(WELCOME_TEXT)
+
         try:
+            # Write user_id to file
             with open(USERID_FILE, "w") as f:
                 f.write(user_id)
             return user_id
         except Exception as e:
             issue_title = urllib.parse.quote("Problem with userid file")
             issue_body = urllib.parse.quote(f"Unable to write userid file: {str(e)}")
-            print("Unable to write userid file:", e)
+            print("Unable to write userid to file:", e)
             print(
-                f"Try deleting USERID_FILE and run 'go <command>' again. If the problem persists, please raise an issue:\
+                f"Try deleting USERID_FILE and run 'gorilla <command>' again. If the problem persists, please raise an issue:\
                    {ISSUE_URL}?title={issue_title}&body={issue_body}"
             )
+            print(
+                f"Using a temporary UID {user_id} for now.."
+            )
+            return user_id
 
 
 def main():
