@@ -51,12 +51,12 @@ def check_for_updates():
     try:
         with open(CONFIG_FILE, "r") as config_file:
             config_json = json.load(config_file)
-        if "last_check_date" in config_json:
-            last_check_date = datetime.datetime.strptime(config_json["last_check_date"], "%Y-%m-%d")
-        else:
-            last_check_date = datetime.datetime.now() - datetime.timedelta(days=1)
     except Exception as e:
-        config_json = {}
+            config_json = {}
+        
+    if "last_check_date" in config_json:
+        last_check_date = datetime.datetime.strptime(config_json["last_check_date"], "%Y-%m-%d")
+    else:
         last_check_date = datetime.datetime.now() - datetime.timedelta(days=1)
     
     if datetime.datetime.now() - last_check_date >= datetime.timedelta(days=1):
@@ -191,16 +191,16 @@ def main():
 
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
-    data_json = {
+
+    with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
+        data_json = {
                 "user_id": config["user_id"],
                 "user_input": user_input,
                 "interaction_id": interaction_id,
-    }
-    if models:
-        data_json["models"] = models
-        print("Results are only chosen from the following LLM model(s): ", models)
-
-    with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
+        }
+        if models:
+            data_json["models"] = models
+            print("Results are only chosen from the following LLM model(s): ", models)
         try:
             response = requests.post(
                 f"{SERVER_URL}/commands", json=data_json, timeout=30
