@@ -192,15 +192,16 @@ def main():
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
 
-    with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
-        data_json = {
+    data_json = {
                 "user_id": config["user_id"],
                 "user_input": user_input,
                 "interaction_id": interaction_id,
         }
-        if models:
-            data_json["models"] = models
-            print("Results are only chosen from the following LLM model(s): ", models)
+    if models:
+        data_json["models"] = models
+        print("Results are only chosen from the following LLM model(s): ", models)
+
+    with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
         try:
             response = requests.post(
                 f"{SERVER_URL}/commands", json=data_json, timeout=30
