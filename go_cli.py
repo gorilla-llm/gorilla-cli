@@ -27,7 +27,7 @@ import go_questionary
 
 __version__ = "0.0.10"  # current version
 SERVER_URL = "https://cli.gorilla-llm.com"
-CONFIG_FILE = os.path.expanduser("~/.gorilla-cli-config.json")
+CONFIG_FILE = "./hello.json"#os.path.expanduser("~/.gorilla-cli-config.json")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
 WELCOME_TEXT = f"""===***===
@@ -46,8 +46,19 @@ Visit github.com/gorilla-llm/gorilla-cli for examples and to learn more!
 ===***==="""
 
 
-def check_for_updates(last_check_date):
+def check_for_updates():
     # Check if a new version of gorilla-cli is available once a day
+    try:
+        with open(CONFIG_FILE, "r") as config_file:
+            config_json = json.load(config_file)
+        if "last_check_date" in config_json:
+            last_check_date = datetime.datetime.strptime(config_json["last_check_date"], "%Y-%m-%d")
+        else:
+            last_check_date = datetime.datetime.now() - datetime.timedelta(days=1)
+    except Exception as e:
+        config_json = {}
+        last_check_date = datetime.datetime.now() - datetime.timedelta(days=1)
+    
     if datetime.datetime.now() - last_check_date >= datetime.timedelta(days=1):
         try:
             response = requests.get("https://pypi.org/pypi/gorilla-cli/json")
@@ -58,6 +69,10 @@ def check_for_updates(last_check_date):
         except Exception as e:
             print("Unable to check for updates:", e)
 
+    config_json["last_check_date"] = datetime.datetime.now().strftime("%Y-%m-%d")
+    with open(CONFIG_FILE, "w") as config_file:
+        json.dump(config_json, config_file)
+
 
 def get_user_id():
     # Unique user identifier for authentication and load balancing
@@ -65,8 +80,14 @@ def get_user_id():
     #  research prototype. Please don't spam the system or use it
     #  for commercial serving. If you would like to request rate
     #  limit increases for your GitHub handle, please raise an issue.
-
-    authenticated = False
+    try:
+        with open(CONFIG_FILE, "r") as config_file:
+            config_json = json.load(config_file)
+        if "user_id" in config_json:
+            return config_json["user_id"]
+    except Exception as e:
+        config_json = {}
+        
     try:
         user_id = (
             subprocess.check_output(["git", "config", "--global", "user.email"])
@@ -81,7 +102,11 @@ def get_user_id():
         if response in ["n", "no"]:
             user_id = str(uuid.uuid4())
         else:
-            authenticated = True
+            print(WELCOME_TEXT)
+            config_json["user_id"] = user_id
+            with open(CONFIG_FILE, "w") as config_file:
+                config_json = json.dump(config_json, config_file)
+
     except Exception as e:
         # If git not installed then generate and use a random user id
         issue_title = urllib.parse.quote(
@@ -94,16 +119,28 @@ def get_user_id():
         )
         user_id = str(uuid.uuid4())
     
-    return (user_id, authenticated)
+    return user_id
 
-def specify_models(file):
+
+def specify_models(file_path):
     # By default, Gorilla-CLI combines the capabilities of multiple Language Learning Models.
     # The specify_models command will make Gorilla exclusively utilize the inputted models.
     try:
-        with open(CONFIG_FILE, "r+") as config_file:
-            config_json = json.load(config_file)
-            config_json["models"] = models
+        with open(file_path, "r") as models_file:
+            models_json = json.load(models_file)
+    except Exception as e:
+        print("Failed to read from " + file_path)
+        return
+
+    try:
+        config_json = {}
+        if os.path.isfile(CONFIG_FILE):
+            with open(CONFIG_FILE, "r") as config_file:
+                config_json = json.load(config_file)
+        config_json["models"] = models_json["models"]
+        with open(CONFIG_FILE, "w") as config_file:
             json.dump(config_json, config_file)
+        print("models set to: " + str(config_json["models"]))
     except io.UnsupportedOperation:
         print("Config.json has not been initialized")
 
@@ -116,56 +153,55 @@ def execute_command(cmd):
             return error_msg
         return str(process.returncode)
 
+
 def load_config():
     # Load the user's configuration file and perform any necessary checks
-    config_json = {}
     if os.path.isfile(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as config_file:
             config_json = json.load(config_file)
-
-    if "last_check_date" in config_json:
-        last_check_date = datetime.datetime.strptime(config_json["last_check_date"], "%Y-%m-%d")
-    else:
-        last_check_date = datetime.datetime.now() - datetime.timedelta(days=1)
-    check_for_updates(last_check_date)
-    config_json["last_check_date"] = datetime.datetime.now().strftime("%Y-%m-%d")
-
-    # Check for user_id. Only add new user_id to the config file if the user has been authenticated.
-    user_id = config_json["user_id"]
-    if "user_id" not in config_json:
-        user_id, authenticated = get_user_id()
-        if authenticated:
-            config_json["user_id"] = user_id
-    
-    with open(CONFIG_FILE, "w") as config_file:
-        config_file.write(json.dumps(config_json))
-
-    config_json["user_id"] = user_id
-
     return config_json
 
+
 def main():
+    user_id = get_user_id()
+    check_for_updates()
+
     config = load_config()
 
+    models = None
+    if "models" in config:
+        models = config["models"]
+
     args = sys.argv[1:]
-    if args[0] == "--model":
+    if args[0] == "--set_models":
         if len(args) != 2:
-            print('--model command must follow the following format: gorilla --model <file path>')
+            print('--set_models command must follow the following format: gorilla --model <file path>')
             return
-        specify_models[args[1]]
+        specify_models(args[1])
+        return
+    
+    if args[0] in ["--model", "-m"]:
+        models = args[1]
+        try:
+            args = args[2:]
+        except Exception as e:
+            print("Unable to parse the arguments. To make Gorilla only use a specific model, run gorilla -m <model_name> <prompts>")
 
     user_input = " ".join(args)
 
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
-
-    with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
-        try:
-            data_json = {
+    data_json = {
                 "user_id": config["user_id"],
                 "user_input": user_input,
                 "interaction_id": interaction_id,
-            }
+    }
+    if models:
+        data_json["models"] = models
+        print("Results are only chosen from the following LLM model(s): ", models)
+
+    with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
+        try:
             response = requests.post(
                 f"{SERVER_URL}/commands", json=data_json, timeout=30
             )
@@ -175,23 +211,17 @@ def main():
             print("Try updating Gorilla-CLI with 'pip install --upgrade gorilla-cli'")
             return
 
-    print(WELCOME_TEXT)
-    
     if commands:
         selected_command = go_questionary.select(
             "", choices=commands, instruction=""
         ).ask()
         exit_condition = execute_command(selected_command)
-
         json = {
-                    "user_id": config["user_id"],
+                    "user_id": user_id,
                     "command": selected_command,
                     "exit_condition": exit_condition,
                     "interaction_id": interaction_id,
                 }
-        if "model" in config:
-            json["model"] = config["model"]
-            print("Only the following LLM models are used by Gorilla: ", config["model"])
         
         # Commands failed / succeeded?
         try:
