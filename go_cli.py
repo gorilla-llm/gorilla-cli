@@ -17,6 +17,8 @@ import os
 import sys
 import uuid
 import requests
+import json
+import io
 import subprocess
 import urllib.parse
 import sys
@@ -25,8 +27,7 @@ import go_questionary
 
 __version__ = "0.0.10"  # current version
 SERVER_URL = "https://cli.gorilla-llm.com"
-UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
-USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
+CONFIG_FILE = os.path.expanduser("~/.gorilla-cli-config.json")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
 WELCOME_TEXT = f"""===***===
@@ -45,13 +46,8 @@ Visit github.com/gorilla-llm/gorilla-cli for examples and to learn more!
 ===***==="""
 
 
-def check_for_updates():
+def check_for_updates(last_check_date):
     # Check if a new version of gorilla-cli is available once a day
-    try:
-        with open(UPDATE_CHECK_FILE, "r") as f:
-            last_check_date = datetime.datetime.strptime(f.read(), "%Y-%m-%d")
-    except FileNotFoundError:
-        last_check_date = datetime.datetime.now() - datetime.timedelta(days=1)
     if datetime.datetime.now() - last_check_date >= datetime.timedelta(days=1):
         try:
             response = requests.get("https://pypi.org/pypi/gorilla-cli/json")
@@ -61,11 +57,6 @@ def check_for_updates():
                 print(f"A new version is available: {latest_version}. Update with `pip install --upgrade gorilla-cli`")
         except Exception as e:
             print("Unable to check for updates:", e)
-        try:
-            with open(UPDATE_CHECK_FILE, "w") as f:
-                f.write(datetime.datetime.now().strftime("%Y-%m-%d"))
-        except Exception as e:
-            print("Unable to write update check file:", e)
 
 
 def get_user_id():
@@ -74,63 +65,50 @@ def get_user_id():
     #  research prototype. Please don't spam the system or use it
     #  for commercial serving. If you would like to request rate
     #  limit increases for your GitHub handle, please raise an issue.
+
+    authenticated = False
     try:
-        with open(USERID_FILE, "r") as f:
-            user_id = str(f.read())
-            # If file found and user_id is blank. User hasn't setup github
-            if user_id == "":
-                user_id = str(uuid.uuid4())
-        return user_id
-    except FileNotFoundError:
-        # First time
-        try:
-            user_id = (
-                subprocess.check_output(["git", "config", "--global", "user.email"])
-                .decode("utf-8")
-                .strip()
-            )
-            print(WELCOME_TEXT)
-            response = (
-                input(f"Use your Github handle ({user_id}) as user id? [Y/n]: ")
-                .strip()
-                .lower()
-            )
-            if response in ["n", "no"]:
-                user_id = str(uuid.uuid4())
-        except Exception as e:
-            # If git not installed then generate and use a random user id
-            issue_title = urllib.parse.quote(
-                f"Problem with generating userid from GitHub: {str(e)}"
-            )
-            issue_body = urllib.parse.quote(f"Unable to generate userid: {str(e)}")
-            print(
-                f"Git not installed, so cannot import userid from Git. \n Please run 'gorilla <command>' again after initializing git. \n Will use a random user-id. If the problem persists, please raise an issue: \
-                  {ISSUE_URL}?title={issue_title}&body={issue_body}"
-            )
+        user_id = (
+            subprocess.check_output(["git", "config", "--global", "user.email"])
+            .decode("utf-8")
+            .strip()
+        )
+        response = (
+            input(f"Use your Github handle ({user_id}) as user id? [Y/n]: ")
+            .strip()
+            .lower()
+        )
+        if response in ["n", "no"]:
             user_id = str(uuid.uuid4())
-            print(WELCOME_TEXT)
+        else:
+            authenticated = True
+    except Exception as e:
+        # If git not installed then generate and use a random user id
+        issue_title = urllib.parse.quote(
+            f"Problem with generating userid from GitHub: {str(e)}"
+        )
+        issue_body = urllib.parse.quote(f"Unable to generate userid: {str(e)}")
+        print(
+            f"Git not installed, so cannot import userid from Git. \n Please run 'gorilla <command>' again after initializing git. \n Will use a random user-id. If the problem persists, please raise an issue: \
+                {ISSUE_URL}?title={issue_title}&body={issue_body}"
+        )
+        user_id = str(uuid.uuid4())
+    
+    return (user_id, authenticated)
 
-        try:
-            # Write user_id to file
-            with open(USERID_FILE, "w") as f:
-                f.write(user_id)
-            return user_id
-        except Exception as e:
-            issue_title = urllib.parse.quote("Problem with userid file")
-            issue_body = urllib.parse.quote(f"Unable to write userid file: {str(e)}")
-            print("Unable to write userid to file:", e)
-            print(
-                f"Try deleting USERID_FILE and run 'gorilla <command>' again. If the problem persists, please raise an issue:\
-                   {ISSUE_URL}?title={issue_title}&body={issue_body}"
-            )
-            print(
-                f"Using a temporary UID {user_id} for now.."
-            )
-            return user_id
+def specify_models(file):
+    # By default, Gorilla-CLI combines the capabilities of multiple Language Learning Models.
+    # The specify_models command will make Gorilla exclusively utilize the inputted models.
+    try:
+        with open(CONFIG_FILE, "r+") as config_file:
+            config_json = json.load(config_file)
+            config_json["models"] = models
+            json.dump(config_json, config_file)
+    except io.UnsupportedOperation:
+        print("Config.json has not been initialized")
 
 
-def main():
-    def execute_command(cmd):
+def execute_command(cmd):
         process = subprocess.run(cmd, shell=True, stderr=subprocess.PIPE)
         error_msg = process.stderr.decode("utf-8", "ignore")
         if error_msg:
@@ -138,9 +116,45 @@ def main():
             return error_msg
         return str(process.returncode)
 
+def load_config():
+    # Load the user's configuration file and perform any necessary checks
+    config_json = {}
+    if os.path.isfile(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as config_file:
+            config_json = json.load(config_file)
+
+    if "last_check_date" in config_json:
+        last_check_date = datetime.datetime.strptime(config_json["last_check_date"], "%Y-%m-%d")
+    else:
+        last_check_date = datetime.datetime.now() - datetime.timedelta(days=1)
+    check_for_updates(last_check_date)
+    config_json["last_check_date"] = datetime.datetime.now().strftime("%Y-%m-%d")
+
+    # Check for user_id. Only add new user_id to the config file if the user has been authenticated.
+    user_id = config_json["user_id"]
+    if "user_id" not in config_json:
+        user_id, authenticated = get_user_id()
+        if authenticated:
+            config_json["user_id"] = user_id
+    
+    with open(CONFIG_FILE, "w") as config_file:
+        config_file.write(json.dumps(config_json))
+
+    config_json["user_id"] = user_id
+
+    return config_json
+
+def main():
+    config = load_config()
+
     args = sys.argv[1:]
+    if args[0] == "--model":
+        if len(args) != 2:
+            print('--model command must follow the following format: gorilla --model <file path>')
+            return
+        specify_models[args[1]]
+
     user_input = " ".join(args)
-    user_id = get_user_id()
 
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
@@ -148,7 +162,7 @@ def main():
     with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
         try:
             data_json = {
-                "user_id": user_id,
+                "user_id": config["user_id"],
                 "user_input": user_input,
                 "interaction_id": interaction_id,
             }
@@ -161,24 +175,29 @@ def main():
             print("Try updating Gorilla-CLI with 'pip install --upgrade gorilla-cli'")
             return
 
-    check_for_updates()
-
+    print(WELCOME_TEXT)
+    
     if commands:
         selected_command = go_questionary.select(
             "", choices=commands, instruction=""
         ).ask()
         exit_condition = execute_command(selected_command)
 
+        json = {
+                    "user_id": config["user_id"],
+                    "command": selected_command,
+                    "exit_condition": exit_condition,
+                    "interaction_id": interaction_id,
+                }
+        if "model" in config:
+            json["model"] = config["model"]
+            print("Only the following LLM models are used by Gorilla: ", config["model"])
+        
         # Commands failed / succeeded?
         try:
             response = requests.post(
                 f"{SERVER_URL}/command-execution-result",
-                json={
-                    "user_id": user_id,
-                    "command": selected_command,
-                    "exit_condition": exit_condition,
-                    "interaction_id": interaction_id,
-                },
+                json=json,
                 timeout=30,
             )
             if response.status_code != 200:
