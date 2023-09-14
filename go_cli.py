@@ -83,10 +83,11 @@ def get_user_id():
     try:
         with open(CONFIG_FILE, "r") as config_file:
             config_json = json.load(config_file)
-        if "user_id" in config_json:
-            return config_json["user_id"]
     except Exception as e:
         config_json = {}
+
+    if "user_id" in config_json:
+            return config_json["user_id"]
         
     try:
         user_id = (
@@ -133,16 +134,15 @@ def specify_models(file_path):
         return
 
     try:
+        with open(CONFIG_FILE, "r") as config_file:
+            config_json = json.load(config_file)
+    except Exception as e:
         config_json = {}
-        if os.path.isfile(CONFIG_FILE):
-            with open(CONFIG_FILE, "r") as config_file:
-                config_json = json.load(config_file)
-        config_json["models"] = models_json["models"]
-        with open(CONFIG_FILE, "w") as config_file:
-            json.dump(config_json, config_file)
+
+    config_json["models"] = models_json["models"]
+    with open(CONFIG_FILE, "w") as config_file:
+        json.dump(config_json, config_file)
         print("models set to: " + str(config_json["models"]))
-    except io.UnsupportedOperation:
-        print("Config.json has not been initialized")
 
 
 def execute_command(cmd):
@@ -196,7 +196,7 @@ def main():
                 "user_id": config["user_id"],
                 "user_input": user_input,
                 "interaction_id": interaction_id,
-        }
+            }
     if models:
         data_json["models"] = models
         print("Results are only chosen from the following LLM model(s): ", models)
@@ -222,11 +222,11 @@ def main():
             return
         exit_condition = execute_command(selected_command)
         json = {
-                    "user_id": user_id,
-                    "command": selected_command,
-                    "exit_condition": exit_condition,
-                    "interaction_id": interaction_id,
-                }
+                "user_id": user_id,
+                "command": selected_command,
+                "exit_condition": exit_condition,
+                "interaction_id": interaction_id,
+            }
         
         # Commands failed / succeeded?
         try:
