@@ -17,6 +17,7 @@ import os
 import sys
 import uuid
 import requests
+import click
 import json
 import io
 import subprocess
@@ -123,26 +124,42 @@ def get_user_id():
     return user_id
 
 
-def specify_models(file_path):
+def specify_models(ctx, param, file_path):
     # By default, Gorilla-CLI combines the capabilities of multiple Language Learning Models.
     # The specify_models command will make Gorilla exclusively utilize the inputted models.
+    if not file_path or ctx.resilient_parsing:
+        return
     try:
         with open(file_path, "r") as models_file:
             models_json = json.load(models_file)
     except Exception as e:
         print("Failed to read from " + file_path)
-        return
-
+        ctx.exit()
     try:
         with open(CONFIG_FILE, "r") as config_file:
             config_json = json.load(config_file)
     except Exception as e:
         config_json = {}
-
     config_json["models"] = models_json["models"]
     with open(CONFIG_FILE, "w") as config_file:
         json.dump(config_json, config_file)
         print("models set to: " + str(config_json["models"]))
+
+    ctx.exit()
+
+
+def reset_models(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
+    try:
+        with open(CONFIG_FILE, "r+") as config_file:
+            config_json = json.load(config_file)
+            if "models" in config_json:
+                del config_json["models"]
+            json.dump(config_json, config_file)
+    except Exception as e:
+        pass
+    ctx.exit()
 
 
 def execute_command(cmd):
@@ -162,32 +179,48 @@ def load_config():
     return config_json
 
 
-def main():
-    user_id = get_user_id()
-    check_for_updates()
+def print_version(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
+    click.echo(__version__)
+    ctx.exit()
+    
 
+@click.command()
+@click.option('--user_id', '--u', default=get_user_id(), help="User id [default: 'git config --global user.email' OR random uuid]")
+@click.option('--server', default = SERVER_URL, help = "LLM host [default: 'cli.gorilla-llm.com']")
+@click.option('--set_models', type=click.Path(), callback = specify_models, expose_value=True,
+              help = "Make Gorilla exclusively utilize the models in the json file specified")
+@click.option('--reset_models', is_flag=True, callback =reset_models, expose_value=False, is_eager=True,
+              help = "Reset models configuration")
+@click.option('--model', '-m', help = "Prompt Gorilla CLI to only use the specified model")
+@click.option('--version', help = "Return the version of GORILLA_CLI", is_flag=True, callback= print_version, expose_value=False, is_eager=True)
+@click.argument('prompt', nargs = -1)
+def main(
+    user_id,
+    server,
+    model,
+    set_models,
+    prompt,
+):
+    check_for_updates()
     config = load_config()
 
-    models = None
-    if "models" in config:
-        models = config["models"]
-
-    args = sys.argv[1:]
-    if args[0] == "--set_models":
-        if len(args) != 2:
-            print('--set_models command must follow the following format: gorilla --model <file path>')
-            return
-        specify_models(args[1])
+    if len(prompt) == 0:
+        print("error: prompt not found, see gorilla-cli usage below " + "➡️")
+        with click.Context(main) as ctx:
+            click.echo(main.get_help(ctx))
         return
-    
-    if args[0] in ["--model", "-m"]:
-        models = args[1]
-        try:
-            args = args[2:]
-        except Exception as e:
-            print("Unable to parse the arguments. To make Gorilla only use a specific model, run gorilla -m <model_name> <prompts>")
 
-    user_input = " ".join(args)
+    #Check if the user has specific model preference.
+    if model:
+        chosen_models = model
+    elif "models" in config:
+        chosen_models = config["models"]
+    else:
+        chosen_models = None
+
+    user_input = " ".join(prompt)
 
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
@@ -197,18 +230,18 @@ def main():
                 "user_input": user_input,
                 "interaction_id": interaction_id,
             }
-    if models:
-        data_json["models"] = models
-        print("Results are only chosen from the following LLM model(s): ", models)
+    if chosen_models:
+        data_json["models"] = chosen_models
+        print("Results are only chosen from the following LLM model(s): ", chosen_models)
 
     with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
         try:
             response = requests.post(
-                f"{SERVER_URL}/commands", json=data_json, timeout=30
+                f"{server}/commands", json=data_json, timeout=30
             )
             commands = response.json()
         except requests.exceptions.RequestException as e:
-            print("Server is unreachable.")
+            print("\nServer " + server + " is unreachable.")
             print("Try updating Gorilla-CLI with 'pip install --upgrade gorilla-cli'")
             return
 
@@ -231,7 +264,7 @@ def main():
         # Commands failed / succeeded?
         try:
             response = requests.post(
-                f"{SERVER_URL}/command-execution-result",
+                f"{server}/command-execution-result",
                 json=json,
                 timeout=30,
             )
