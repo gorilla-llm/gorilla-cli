@@ -85,6 +85,7 @@ def get_user_id():
         with open(CONFIG_FILE, "r") as config_file:
             config_json = json.load(config_file)
     except Exception as e:
+        print(e)
         config_json = {}
 
     if "user_id" in config_json:
@@ -152,10 +153,11 @@ def reset_models(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
     try:
-        with open(CONFIG_FILE, "r+") as config_file:
+        with open(CONFIG_FILE, "r") as config_file:
             config_json = json.load(config_file)
-            if "models" in config_json:
-                del config_json["models"]
+        if "models" in config_json:
+            del config_json["models"]
+        with open(CONFIG_FILE, "w") as config_file:
             json.dump(config_json, config_file)
     except Exception as e:
         pass
@@ -226,7 +228,7 @@ def main(
     interaction_id = str(uuid.uuid4())
 
     data_json = {
-                "user_id": config["user_id"],
+                "user_id": user_id,
                 "user_input": user_input,
                 "interaction_id": interaction_id,
             }
