@@ -1,0 +1,13 @@
+.env
+__pycache__
+.DS_Store
+.pytest_cache
+*.egg-info
+venv
+dist
+build
+~
+.local
+.cache
+.verba
+.vscode
