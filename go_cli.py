@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import venv
+import shutil
 import datetime
 import os
 import sys
@@ -29,8 +30,7 @@ UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
 USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
-WELCOME_TEXT = f"""===***===
-{GORILLA_EMOJI}Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
+WELCOME_TEXT = f"""{GORILLA_EMOJI}Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
 
 Simply use `gorilla <your desired operation>` and Gorilla will do the rest. For instance:
     gorilla generate 100 random characters into a file called test.txt
@@ -41,8 +41,7 @@ A research prototype from UC Berkeley, Gorilla-CLI ensures user control and priv
  - Commands are executed only with explicit user approval.
  - While queries and error (stderr) logs are used to refine our model, we NEVER gather output (stdout) data.
 
-Visit github.com/gorilla-llm/gorilla-cli for examples and to learn more!
-===***==="""
+Visit github.com/gorilla-llm/gorilla-cli for examples and to learn more!"""
 
 
 def check_for_updates():
@@ -74,76 +73,75 @@ def get_user_id():
     #  research prototype. Please don't spam the system or use it
     #  for commercial serving. If you would like to request rate
     #  limit increases for your GitHub handle, please raise an issue.
+
+    user_id = None  # Initialize user_id with None as default
     try:
         with open(USERID_FILE, "r") as f:
             user_id = str(f.read())
-            # If file found and user_id is blank. User hasn't setup github
             if user_id == "":
                 user_id = str(uuid.uuid4())
-        return user_id
+            return user_id
     except FileNotFoundError:
-        # First time
         try:
-            user_id = (
+            user_id = str(uuid.uuid4())  # Assign a default uuid
+            email = (
                 subprocess.check_output(["git", "config", "--global", "user.email"])
                 .decode("utf-8")
                 .strip()
             )
             print(WELCOME_TEXT)
-            response = (
-                input(f"Use your Github handle ({user_id}) as user id? [Y/n]: ")
-                .strip()
-                .lower()
-            )
-            if response in ["n", "no"]:
-                user_id = str(uuid.uuid4())
-        except Exception as e:
-            # If git not installed then generate and use a random user id
-            issue_title = urllib.parse.quote(
-                f"Problem with generating userid from GitHub: {str(e)}"
-            )
-            issue_body = urllib.parse.quote(f"Unable to generate userid: {str(e)}")
-            print(
-                f"Git not installed, so cannot import userid from Git. \n Please run 'gorilla <command>' again after initializing git. \n Will use a random user-id. If the problem persists, please raise an issue: \
-                  {ISSUE_URL}?title={issue_title}&body={issue_body}"
-            )
-            user_id = str(uuid.uuid4())
-            print(WELCOME_TEXT)
-
+            response = input(f"Use your Github handle ({email}) as user id? [Y/n]: ").strip().lower()
+            if response not in ["n", "no"]:
+                user_id = email
+        except subprocess.CalledProcessError:
+            print("Git user email is not configured. Using a generated UUID as user_id.")
+        except Exception as e:  # Handle other unexpected exceptions separately
+            print(f"Unexpected error occurred while getting user id: {e}")
+            
         try:
-            # Write user_id to file
             with open(USERID_FILE, "w") as f:
                 f.write(user_id)
             return user_id
         except Exception as e:
+            print(f"Unable to write userid file: {e}")
             issue_title = urllib.parse.quote("Problem with userid file")
             issue_body = urllib.parse.quote(f"Unable to write userid file: {str(e)}")
-            print("Unable to write userid to file:", e)
             print(
-                f"Try deleting USERID_FILE and run 'gorilla <command>' again. If the problem persists, please raise an issue:\
+                f"Try deleting USERID_FILE and run 'go <command>' again. If the problem persists, please raise an issue:\
                    {ISSUE_URL}?title={issue_title}&body={issue_body}"
             )
-            print(
-                f"Using a temporary UID {user_id} for now.."
-            )
-            return user_id
 
 
 def main():
+    venv_path = os.path.expanduser('~/gorilla_venv') 
+    restricted_user = 'sandboxuser'  # The restricted user
+    
+    def create_virtual_environment():
+        if os.path.exists(venv_path):
+            shutil.rmtree(venv_path)  # Remove the existing virtual environment
+        venv.create(venv_path, with_pip=True)
+    
+    def install_dependencies():
+        pip = os.path.join(venv_path, 'bin', 'pip')
+        subprocess.run([pip, 'install', 'requests', 'halo', 'prompt_toolkit', 'typing'], check=True)
+    
     def execute_command(cmd):
-        process = subprocess.run(cmd, shell=True, stderr=subprocess.PIPE)
-        error_msg = process.stderr.decode("utf-8", "ignore")
-        if error_msg:
-            print(f"{error_msg}")
-            return error_msg
+        create_virtual_environment()  # Create a new virtual environment
+        install_dependencies()  # Install the necessary dependencies
+        python = os.path.join(venv_path, 'bin', 'python')
+        try:
+            process = subprocess.run(['sudo', '-u', restricted_user, python, '-c', cmd], 
+                                     stderr=subprocess.PIPE, check=False)
+        except subprocess.CalledProcessError as e:
+            print(f"Error running command as {restricted_user}: {e}", file=sys.stderr)
+            sys.exit(1)
         return str(process.returncode)
-
     args = sys.argv[1:]
     user_input = " ".join(args)
     user_id = get_user_id()
-
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
+
 
     with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
         try:
@@ -167,10 +165,6 @@ def main():
         selected_command = go_questionary.select(
             "", choices=commands, instruction=""
         ).ask()
-
-        if not selected_command:
-            # happens when Ctrl-C is pressed
-            return
         exit_condition = execute_command(selected_command)
 
         # Commands failed / succeeded?
