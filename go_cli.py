@@ -31,6 +31,7 @@ USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
 HISTORY_FILE = os.path.expanduser("~/.gorilla_cli_history")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
+HISTORY_LENGTH = 5
 WELCOME_TEXT = f"""===***===
 {GORILLA_EMOJI}Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
 
@@ -148,7 +149,7 @@ def append_string_to_file_if_missing(file_path, target_string):
             lines = file.readlines()
 
         # Check if the target string is already in the file
-        if target_string not in lines:
+        if target_string not in lines[-HISTORY_LENGTH:]:
             with open(file_path, 'a') as file:
                 file.write(target_string)
     except FileNotFoundError:
@@ -162,7 +163,7 @@ def main():
         cmd = format_command(cmd)
         process = subprocess.run(cmd, shell=True, stderr=subprocess.PIPE)
 
-        save = cmd.startswith(':')
+        save = not cmd.startswith(':')
         if save:
             append_string_to_file_if_missing(HISTORY_FILE, cmd)
 
@@ -183,7 +184,7 @@ def main():
                 lines = history.readlines()
                 if not lines:
                     print("No command history.")
-                return lines[-10:]
+                return lines[-HISTORY_LENGTH:]
         else:
             print("No command history.")
             return
@@ -226,7 +227,7 @@ def main():
 
     if commands:
         selected_command = go_questionary.select(
-            "", choices=commands, instruction=""
+            "", choices=commands, instruction="Welcome to Gorilla. Use arrow keys to select. Ctrl-C to Exit"
         ).ask()
 
         if not selected_command:
