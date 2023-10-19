@@ -195,6 +195,10 @@ def main():
         selected_command = go_questionary.select(
             "", choices=commands, instruction=""
         ).ask()
+
+        if not selected_command:
+            # happens when Ctrl-C is pressed
+            return
         exit_condition = execute_command(selected_command)
         
         # Append command to bash history
