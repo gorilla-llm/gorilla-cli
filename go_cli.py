@@ -21,9 +21,7 @@ import platform
 import requests
 import click
 import json
-import io
 import subprocess
-import argparse
 import termios
 import urllib.parse
 import sys
@@ -291,6 +289,15 @@ def get_history_commands(ctx, param, value):
     else:
         click.echo("No command history.")
     ctx.exit()
+
+def format_commands(commands):
+    for i, command in enumerate(commands):
+        if command[-1] == '\n':
+            commands[i] = command[:-1]
+            print(commands[i])
+            break
+    return commands
+
     
 
 @click.command()
@@ -357,6 +364,7 @@ def main(
             return
 
     if commands:
+        commands = format_commands(commands)
         selected_command = go_questionary.select(
             "", choices=commands, instruction="Welcome to Gorilla. Use arrow keys to select. Ctrl-C to Exit"
         ).ask()
@@ -364,8 +372,13 @@ def main(
         if not selected_command:
             # happens when Ctrl-C is pressed
             return
-        exit_condition = execute_command(selected_command)
+        
+        # Append command to bash history
+        if system_info == "Linux":
+            append_to_bash_history(selected_command)
+            prefill_shell_cmd(selected_command)
 
+        exit_condition = execute_command(selected_command)
         json = {
                 "user_id": user_id,
                 "command": selected_command,
@@ -373,12 +386,6 @@ def main(
                 "interaction_id": interaction_id,
             }
         
-        
-        # Append command to bash history
-        if system_info == "Linux":
-            append_to_bash_history(selected_command)
-            prefill_shell_cmd(selected_command)
-
         # Commands failed / succeeded?
         try:
             response = requests.post(
