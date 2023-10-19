@@ -287,7 +287,6 @@ def format_output_commands(commands):
 
 @click.command()
 @click.option('--user_id', '--u', default=get_user_id(), help="User id [default: 'git config --global user.email' OR random uuid]")
-@click.option('--server', default = SERVER_URL, help = "LLM host [default: 'cli.gorilla-llm.com']")
 @click.option('--set_models', type=click.Path(), callback = specify_models, expose_value=True,
               help = "Make Gorilla exclusively utilize the models in the json file specified")
 @click.option('--reset_models', is_flag=True, callback =reset_models, expose_value=False, is_eager=True,
@@ -298,7 +297,6 @@ def format_output_commands(commands):
 @click.argument('prompt', nargs = -1)
 def main(
     user_id,
-    server,
     model,
     set_models,
     prompt,
@@ -339,11 +337,11 @@ def main(
     with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
         try:
             response = requests.post(
-                f"{server}/commands", json=data_json, timeout=30
+                f"{SERVER_URL}/commands", json=data_json, timeout=30
             )
             commands = response.json()
         except requests.exceptions.RequestException as e:
-            print("\nServer " + server + " is unreachable.")
+            print("\nServer " + SERVER_URL + " is unreachable.")
             print("Try updating Gorilla-CLI with 'pip install --upgrade gorilla-cli'")
             return
 
@@ -367,7 +365,7 @@ def main(
         # Commands failed / succeeded?
         try:
             response = requests.post(
-                f"{server}/command-execution-result",
+                f"{SERVER_URL}/command-execution-result",
                 json={
                     "user_id": user_id,
                     "command": selected_command,
