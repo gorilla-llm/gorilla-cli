@@ -155,7 +155,6 @@ def get_user_id():
                 config_json = json.dump(config_json, config_file)
 
     except Exception as e:
-        print(e)
         # If git not installed then generate and use a random user id
         print(f"Unable to import userid from Git. Git not installed or git user.email not configured.")
         print(f"Will use a random user-id. \n")
@@ -364,18 +363,17 @@ def main(
             prefill_shell_cmd(selected_command)
 
         exit_condition = execute_command(selected_command)
-        json = {
-                "user_id": user_id,
-                "command": selected_command,
-                "exit_condition": exit_condition,
-                "interaction_id": interaction_id,
-            }
         
         # Commands failed / succeeded?
         try:
             response = requests.post(
                 f"{server}/command-execution-result",
-                json=json,
+                json={
+                "user_id": user_id,
+                "command": selected_command,
+                "exit_condition": exit_condition,
+                "interaction_id": interaction_id,
+                },
                 timeout=30,
             )
             if response.status_code != 200:
