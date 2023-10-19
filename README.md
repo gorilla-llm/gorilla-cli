@@ -63,6 +63,24 @@ $ gorilla get the image ids of all pods running in all namespaces in kubernetes
 
 Gorilla-CLI fuses the capabilities of various Language Learning Models (LLMs) like [Gorilla LLM](https://github.com/ShishirPatil/gorilla/), OpenAI's GPT-4, Claude v1, and others to present a user-friendly command-line interface. For each user query, we gather responses from all contributing LLMs, filter, sort, and present you with the most relevant options. 
 
+### Arguments
+
+```
+usage: go_cli.py [-h] [-p] [command_args ...]
+
+Gorilla CLI Help Doc
+
+positional arguments:
+  command_args   Prompt to be inputted to Gorilla
+
+optional arguments:
+  -h, --help     show this help message and exit
+  -p, --history  Display command history
+```
+
+The history feature lets the user go back to previous commands they've executed to re-execute in a similar fashion to terminal history.
+
+
 ## Contributions
 
 We welcome your enhancements to Gorilla CLI! If you have improvements, feel free to submit a pull request on our GitHub page. 

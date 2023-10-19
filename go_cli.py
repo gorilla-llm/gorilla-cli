@@ -20,6 +20,7 @@ import fcntl
 import platform
 import requests
 import subprocess
+import argparse
 import termios
 import urllib.parse
 import sys
@@ -30,8 +31,10 @@ __version__ = "0.0.11"  # current version
 SERVER_URL = "https://cli.gorilla-llm.com"
 UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
 USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
+HISTORY_FILE = os.path.expanduser("~/.gorilla_cli_history")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
+HISTORY_LENGTH = 10
 WELCOME_TEXT = f"""===***===
 {GORILLA_EMOJI}Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
 
@@ -142,6 +145,8 @@ def get_user_id():
         except Exception as e:
             print(f"Git not installed. Unable to import userid from Git.")
             print(f"Will use a random user-id.")
+            print("Try running:\n")
+            print("git config --global user.email <your_email>\n\n")
             user_id = generate_random_uid()
             print(WELCOME_TEXT)
 
@@ -154,46 +159,105 @@ def get_user_id():
             print(f"Using a temporary UID {user_id} for now.")
             return user_id
 
+def format_command(input_str):
+    """
+    Standardize commands to be stored with a newline
+    character in the history
+    """
+    if not input_str.endswith('\n'):
+        input_str += '\n'
+    return input_str
+
+def append_string_to_file_if_missing(file_path, target_string):
+    """
+    Don't append command to history file if it already exists.
+    """
+    try:
+        with open(file_path, 'r') as file:
+            lines = file.readlines()
+
+        # Check if the target string is already in the file
+        if target_string not in lines[-HISTORY_LENGTH:]:
+            with open(file_path, 'a') as file:
+                file.write(target_string)
+    except FileNotFoundError:
+        # If the file doesn't exist, create it and append the string
+        with open(file_path, 'w') as file:
+            file.write(target_string)
+
 
 def main():
     def execute_command(cmd):
+        cmd = format_command(cmd)
         process = subprocess.run(cmd, shell=True, stderr=subprocess.PIPE)
+
+        save = not cmd.startswith(':')
+        if save:
+            append_string_to_file_if_missing(HISTORY_FILE, cmd)
+
         error_msg = process.stderr.decode("utf-8", "ignore")
         if error_msg:
             print(f"{error_msg}")
             return error_msg
         return str(process.returncode)
 
+    def get_history_commands(history_file):
+        """
+        Takes in history file
+        Returns None if file doesn't exist or empty
+        Returns list of last 10 history commands in the file if it exists
+        """
+        if os.path.isfile(history_file):
+            with open(history_file, 'r') as history:
+                lines = history.readlines()
+                if not lines:
+                    print("No command history.")
+                return lines[-HISTORY_LENGTH:]
+        else:
+            print("No command history.")
+            return
+
     args = sys.argv[1:]
     user_input = " ".join(args)
     user_id = get_user_id()
     system_info = get_system_info()
 
+
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Gorilla CLI Help Doc")
+    parser.add_argument("-p", "--history", action="store_true", help="Display command history")
+    parser.add_argument("command_args", nargs='*', help="Prompt to be inputted to Gorilla")
+
+    args = parser.parse_args()
+
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
 
-    with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
-        try:
-            data_json = {
-                "user_id": user_id,
-                "user_input": user_input,
-                "interaction_id": interaction_id,
-                "system_info": system_info,
-            }
-            response = requests.post(
-                f"{SERVER_URL}/commands_v2", json=data_json, timeout=30
-            )
-            commands = response.json()
-        except requests.exceptions.RequestException as e:
-            print("Server is unreachable.")
-            print("Try updating Gorilla-CLI with 'pip install --upgrade gorilla-cli'")
-            return
+    if args.history:
+        commands = get_history_commands(HISTORY_FILE)
+    else:
+        with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
+            try:
+                data_json = {
+                    "user_id": user_id,
+                    "user_input": user_input,
+                    "interaction_id": interaction_id,
+                    "system_info": system_info
+                }
+                response = requests.post(
+                    f"{SERVER_URL}/commands_v2", json=data_json, timeout=30
+                )
+                commands = response.json()
+            except requests.exceptions.RequestException as e:
+                print("Server is unreachable.")
+                print("Try updating Gorilla-CLI with 'pip install --upgrade gorilla-cli'")
+                return
 
     check_for_updates()
 
     if commands:
         selected_command = go_questionary.select(
-            "", choices=commands, instruction=""
+            "", choices=commands, instruction="Welcome to Gorilla. Use arrow keys to select. Ctrl-C to Exit"
         ).ask()
 
         if not selected_command:
