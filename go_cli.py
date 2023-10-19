@@ -85,7 +85,6 @@ def get_user_id():
         with open(CONFIG_FILE, "r") as config_file:
             config_json = json.load(config_file)
     except Exception as e:
-        print(e)
         config_json = {}
 
     if "user_id" in config_json:
