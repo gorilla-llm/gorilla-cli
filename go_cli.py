@@ -16,15 +16,18 @@ import datetime
 import os
 import sys
 import uuid
+import fcntl
+import platform
 import requests
 import subprocess
 import argparse
+import termios
 import urllib.parse
 import sys
 from halo import Halo
 import go_questionary
 
-__version__ = "0.0.10"  # current version
+__version__ = "0.0.11"  # current version
 SERVER_URL = "https://cli.gorilla-llm.com"
 UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
 USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
@@ -47,6 +50,55 @@ A research prototype from UC Berkeley, Gorilla-CLI ensures user control and priv
 Visit github.com/gorilla-llm/gorilla-cli for examples and to learn more!
 ===***==="""
 
+
+def generate_random_uid():
+    return str(uuid.uuid4())
+
+def get_git_email():
+    return subprocess.check_output(["git", "config", "--global", "user.email"]).decode("utf-8").strip()
+
+def get_system_info():
+    return platform.system()
+
+def write_uid_to_file(uid):
+    with open(USERID_FILE, "w") as f:
+        f.write(uid)
+
+def append_to_bash_history(selected_command):
+    try:
+        with open(os.path.expanduser("~/.bash_history"), "a") as history_file:
+            history_file.write(selected_command + '\n')
+    except Exception as e:
+        pass
+
+
+
+
+def prefill_shell_cmd(cmd):
+    # Inspired from 
+    stdin = 0
+    # Save TTY attributes for stdin
+    oldattr = termios.tcgetattr(stdin)
+    # Create new attributes to fake input
+    newattr = termios.tcgetattr(stdin)
+    # Disable echo in stdin -> only inject cmd in stdin queue (with TIOCSTI)
+    newattr[3] &= ~termios.ECHO
+    # Enable non-canonical mode -> ignore special editing characters
+    newattr[3] &= ~termios.ICANON
+    # Use the new attributes
+    termios.tcsetattr(stdin, termios.TCSANOW, newattr)
+    # Write the selected command in stdin queue
+    for c in cmd:
+        fcntl.ioctl(stdin, termios.TIOCSTI, c)
+    # Restore TTY attributes for stdin
+    termios.tcsetattr(stdin, termios.TCSADRAIN, oldattr)
+
+
+def raise_issue(title, body):
+    issue_title = urllib.parse.quote(title)
+    issue_body = urllib.parse.quote(body)
+    issue_url = f"{ISSUE_URL}?title={issue_title}&body={issue_body}"
+    print(f"If the problem persists, please raise an issue: {issue_url}")
 
 def check_for_updates():
     # Check if a new version of gorilla-cli is available once a day
@@ -79,57 +131,32 @@ def get_user_id():
     #  limit increases for your GitHub handle, please raise an issue.
     try:
         with open(USERID_FILE, "r") as f:
-            user_id = str(f.read())
-            # If file found and user_id is blank. User hasn't setup github
-            if user_id == "":
-                user_id = str(uuid.uuid4())
+            user_id = f.read().strip()
+        if not user_id:
+            user_id = generate_random_uid()
         return user_id
     except FileNotFoundError:
-        # First time
         try:
-            user_id = (
-                subprocess.check_output(["git", "config", "--global", "user.email"])
-                .decode("utf-8")
-                .strip()
-            )
+            user_id = get_git_email()
             print(WELCOME_TEXT)
-            response = (
-                input(f"Use your Github handle ({user_id}) as user id? [Y/n]: ")
-                .strip()
-                .lower()
-            )
+            response = input(f"Use your Github handle ({user_id}) as user id? [Y/n]: ").strip().lower()
             if response in ["n", "no"]:
-                user_id = str(uuid.uuid4())
+                user_id = generate_random_uid()
         except Exception as e:
-            # If git not installed then generate and use a random user id
-            issue_title = urllib.parse.quote(
-                f"Problem with generating userid from GitHub: {str(e)}"
-            )
-            issue_body = urllib.parse.quote(f"Unable to generate userid: {str(e)}")
-            print(
-                f"Git not installed or not configured, so cannot import userid from Git.\nTry running \
-                  \n\ngit config --global user.email <your_email>\n\nPlease run 'gorilla <command>' again after initializing git. \n Will use a random user-id. If the problem persists, please raise an issue: \
-                  \n{ISSUE_URL}?title={issue_title}&body={issue_body}"
-            )
-            user_id = str(uuid.uuid4())
+            print(f"Git not installed. Unable to import userid from Git.")
+            print(f"Will use a random user-id.")
+            print("Try running:\n")
+            print("git config --global user.email <your_email>\n\n")
+            user_id = generate_random_uid()
             print(WELCOME_TEXT)
 
         try:
-            # Write user_id to file
-            with open(USERID_FILE, "w") as f:
-                f.write(user_id)
+            write_uid_to_file(user_id)
             return user_id
         except Exception as e:
-            issue_title = urllib.parse.quote("Problem with userid file")
-            issue_body = urllib.parse.quote(f"Unable to write userid file: {str(e)}")
-            print("Unable to write userid to file:", e)
-            print(
-                f"Try deleting USERID_FILE and run 'gorilla <command>' again. If the problem persists, please raise an issue:\
-                   {ISSUE_URL}?title={issue_title}&body={issue_body}"
-            )
-            print(
-                f"Using a temporary UID {user_id} for now.."
-            )
+            print(f"Unable to write userid to file: {e}")
+            raise_issue("Problem with userid file", f"Unable to write userid file: {e}")
+            print(f"Using a temporary UID {user_id} for now.")
             return user_id
 
 def format_command(input_str):
@@ -193,6 +220,7 @@ def main():
     args = sys.argv[1:]
     user_input = " ".join(args)
     user_id = get_user_id()
+    system_info = get_system_info()
 
 
     # Parse command-line arguments
@@ -214,9 +242,10 @@ def main():
                     "user_id": user_id,
                     "user_input": user_input,
                     "interaction_id": interaction_id,
+                    "system_info": system_info
                 }
                 response = requests.post(
-                    f"{SERVER_URL}/commands", json=data_json, timeout=30
+                    f"{SERVER_URL}/commands_v2", json=data_json, timeout=30
                 )
                 commands = response.json()
             except requests.exceptions.RequestException as e:
@@ -235,6 +264,11 @@ def main():
             # happens when Ctrl-C is pressed
             return
         exit_condition = execute_command(selected_command)
+        
+        # Append command to bash history
+        if system_info == "Linux":
+            append_to_bash_history(selected_command)
+            prefill_shell_cmd(selected_command)
 
         # Commands failed / succeeded?
         try:
@@ -252,7 +286,6 @@ def main():
                 print("Failed to send command execution result to the server.")
         except requests.exceptions.Timeout:
             print("Failed to send command execution result to the server: Timeout.")
-
 
 if __name__ == "__main__":
     main()
