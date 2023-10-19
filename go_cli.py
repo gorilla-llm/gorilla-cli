@@ -30,7 +30,7 @@ import go_questionary
 
 __version__ = "0.0.11"  # current version
 SERVER_URL = "https://cli.gorilla-llm.com"
-CONFIG_FILE = os.path.expanduser("~/.gorilla-cli-config.json")
+CONFIG_FILE = "./config.json"#os.path.expanduser("~/.gorilla-cli-config.json")
 HISTORY_FILE = os.path.expanduser("~/.gorilla_cli_history")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
@@ -59,10 +59,6 @@ def get_git_email():
 
 def get_system_info():
     return platform.system()
-
-def write_uid_to_file(uid):
-    with open(USERID_FILE, "w") as f:
-        f.write(uid)
 
 def append_to_bash_history(selected_command):
     try:
@@ -144,18 +140,14 @@ def get_user_id():
             return config_json["user_id"]
         
     try:
-        user_id = (
-            subprocess.check_output(["git", "config", "--global", "user.email"])
-            .decode("utf-8")
-            .strip()
-        )
+        user_id = get_git_email()
         response = (
             input(f"Use your Github handle ({user_id}) as user id? [Y/n]: ")
             .strip()
             .lower()
         )
         if response in ["n", "no"]:
-            user_id = str(uuid.uuid4())
+            user_id = generate_random_uid()
         else:
             print(WELCOME_TEXT)
             config_json["user_id"] = user_id
@@ -163,16 +155,11 @@ def get_user_id():
                 config_json = json.dump(config_json, config_file)
 
     except Exception as e:
+        print(e)
         # If git not installed then generate and use a random user id
-        issue_title = urllib.parse.quote(
-            f"Problem with generating userid from GitHub: {str(e)}"
-        )
-        issue_body = urllib.parse.quote(f"Unable to generate userid: {str(e)}")
-        print(
-            f"Git not installed, so cannot import userid from Git. \n Please run 'gorilla <command>' again after initializing git. \n Will use a random user-id. If the problem persists, please raise an issue: \
-                {ISSUE_URL}?title={issue_title}&body={issue_body}"
-        )
-        user_id = str(uuid.uuid4())
+        print(f"Unable to import userid from Git. Git not installed or git user.email not configured.")
+        print(f"Will use a random user-id. \n")
+        user_id = generate_random_uid()
     
     return user_id
 
@@ -290,11 +277,10 @@ def get_history_commands(ctx, param, value):
         click.echo("No command history.")
     ctx.exit()
 
-def format_commands(commands):
+def format_output_commands(commands):
     for i, command in enumerate(commands):
         if command[-1] == '\n':
             commands[i] = command[:-1]
-            print(commands[i])
             break
     return commands
 
@@ -340,7 +326,6 @@ def main(
 
     args = sys.argv[1:]
     user_input = " ".join(args)
-    user_id = get_user_id()
     system_info = get_system_info()
     data_json = {
                 "user_id": user_id,
@@ -364,7 +349,7 @@ def main(
             return
 
     if commands:
-        commands = format_commands(commands)
+        commands = format_output_commands(commands)
         selected_command = go_questionary.select(
             "", choices=commands, instruction="Welcome to Gorilla. Use arrow keys to select. Ctrl-C to Exit"
         ).ask()
