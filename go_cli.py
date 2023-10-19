@@ -178,9 +178,10 @@ def main():
                 "user_id": user_id,
                 "user_input": user_input,
                 "interaction_id": interaction_id,
+                "system_info": system_info,
             }
             response = requests.post(
-                f"{SERVER_URL}/commands", json=data_json, timeout=30
+                f"{SERVER_URL}/commands_v2", json=data_json, timeout=30
             )
             commands = response.json()
         except requests.exceptions.RequestException as e:
