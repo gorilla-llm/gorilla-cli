@@ -30,7 +30,7 @@ import go_questionary
 
 __version__ = "0.0.11"  # current version
 SERVER_URL = "https://cli.gorilla-llm.com"
-CONFIG_FILE = "./config.json"#os.path.expanduser("~/.gorilla-cli-config.json")
+CONFIG_FILE = os.path.expanduser("~/.gorilla-cli-config.json")
 HISTORY_FILE = os.path.expanduser("~/.gorilla_cli_history")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
