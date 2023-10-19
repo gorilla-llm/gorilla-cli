@@ -143,10 +143,8 @@ def get_user_id():
             if response in ["n", "no"]:
                 user_id = generate_random_uid()
         except Exception as e:
-            print(f"Git not installed. Unable to import userid from Git.")
-            print(f"Will use a random user-id.")
-            print("Try running:\n")
-            print("git config --global user.email <your_email>\n\n")
+            print(f"Unable to import userid from Git. Git not installed or git user.email not configured.")
+            print(f"Will use a random user-id. \n")
             user_id = generate_random_uid()
             print(WELCOME_TEXT)
 
