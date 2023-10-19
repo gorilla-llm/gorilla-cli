@@ -31,7 +31,7 @@ USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
 HISTORY_FILE = os.path.expanduser("~/.gorilla_cli_history")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
-HISTORY_LENGTH = 5
+HISTORY_LENGTH = 10
 WELCOME_TEXT = f"""===***===
 {GORILLA_EMOJI}Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
 
@@ -107,8 +107,9 @@ def get_user_id():
             )
             issue_body = urllib.parse.quote(f"Unable to generate userid: {str(e)}")
             print(
-                f"Git not installed, so cannot import userid from Git. \n Please run 'gorilla <command>' again after initializing git. \n Will use a random user-id. If the problem persists, please raise an issue: \
-                  {ISSUE_URL}?title={issue_title}&body={issue_body}"
+                f"Git not installed or not configured, so cannot import userid from Git.\nTry running \
+                  \n\ngit config --global user.email <your_email>\n\nPlease run 'gorilla <command>' again after initializing git. \n Will use a random user-id. If the problem persists, please raise an issue: \
+                  \n{ISSUE_URL}?title={issue_title}&body={issue_body}"
             )
             user_id = str(uuid.uuid4())
             print(WELCOME_TEXT)
