@@ -29,6 +29,7 @@ setup(
         "requests",
         "halo",
         "prompt-toolkit",
+        "click"
     ],
     entry_points={
         "console_scripts": [
