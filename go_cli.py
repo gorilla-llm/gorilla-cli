@@ -369,10 +369,10 @@ def main(
             response = requests.post(
                 f"{server}/command-execution-result",
                 json={
-                "user_id": user_id,
-                "command": selected_command,
-                "exit_condition": exit_condition,
-                "interaction_id": interaction_id,
+                    "user_id": user_id,
+                    "command": selected_command,
+                    "exit_condition": exit_condition,
+                    "interaction_id": interaction_id,
                 },
                 timeout=30,
             )
