@@ -138,30 +138,52 @@ def get_user_id():
 
     if "user_id" in config_json:
             return config_json["user_id"]
-        
-    try:
-        user_id = get_git_email()
-        response = (
-            input(f"Use your Github handle ({user_id}) as user id? [Y/n]: ")
-            .strip()
-            .lower()
-        )
-        if response in ["n", "no"]:
-            user_id = generate_random_uid()
-        else:
+    
+    user_id = get_legacy_user_id()
+    if user_id:
+        config_json["user_id"] = user_id
+    else:
+        try:
+            user_id = get_git_email()
+            response = (
+                input(f"Use your Github handle ({user_id}) as user id? [Y/n]: ")
+                .strip()
+                .lower()
+            )
+            if response in ["n", "no"]:
+                user_id = generate_random_uid()
+            
             print(WELCOME_TEXT)
             config_json["user_id"] = user_id
-            with open(CONFIG_FILE, "w") as config_file:
-                config_json = json.dump(config_json, config_file)
 
+        except Exception as e:
+            # If git not installed then generate and use a random user id
+            print(f"Unable to import userid from Git. Git not installed or git user.email not configured.")
+            print(f"Will use a random user-id. \n")
+            user_id = generate_random_uid()
+
+    try:
+        with open(CONFIG_FILE, "w") as config_file:
+                config_json = json.dump(config_json, config_file)
     except Exception as e:
-        # If git not installed then generate and use a random user id
-        print(f"Unable to import userid from Git. Git not installed or git user.email not configured.")
-        print(f"Will use a random user-id. \n")
-        user_id = generate_random_uid()
-    
+        print(f"Unable to write userid to file: {e}")
+        raise_issue("Problem with userid file", f"Unable to write userid file: {e}")
+        print(f"Using a temporary UID {user_id} for now.")
+
     return user_id
 
+def get_legacy_user_id():
+    # Previously, user id were not stored in config.json and were stored in a separate file.
+    # This function checks whether or not the user already have their user_id set
+    # Before the update to use config.json.
+    USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
+    try:
+        with open(USERID_FILE, "r") as f:
+            user_id = f.read().strip()
+            return user_id
+    except:
+        return None
+    
 def format_command(input_str):
     """
     Standardize commands to be stored with a newline
