@@ -166,8 +166,8 @@ def get_user_id():
         with open(CONFIG_FILE, "w") as config_file:
                 config_json = json.dump(config_json, config_file)
     except Exception as e:
-        print(f"Unable to write userid to file: {e}")
-        raise_issue("Problem with userid file", f"Unable to write userid file: {e}")
+        print(f"Unable to write userid to config file: {e}")
+        raise_issue("Problem with cofnig file", f"Unable to write userid to cofnig file: {e}")
         print(f"Using a temporary UID {user_id} for now.")
 
     return user_id
