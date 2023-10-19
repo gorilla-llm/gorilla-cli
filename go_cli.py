@@ -16,21 +16,27 @@ import datetime
 import os
 import sys
 import uuid
+import fcntl
+import platform
 import requests
 import click
 import json
 import io
 import subprocess
+import argparse
+import termios
 import urllib.parse
 import sys
 from halo import Halo
 import go_questionary
 
-__version__ = "0.0.10"  # current version
+__version__ = "0.0.11"  # current version
 SERVER_URL = "https://cli.gorilla-llm.com"
 CONFIG_FILE = os.path.expanduser("~/.gorilla-cli-config.json")
+HISTORY_FILE = os.path.expanduser("~/.gorilla_cli_history")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
+HISTORY_LENGTH = 10
 WELCOME_TEXT = f"""===***===
 {GORILLA_EMOJI}Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
 
@@ -46,6 +52,55 @@ A research prototype from UC Berkeley, Gorilla-CLI ensures user control and priv
 Visit github.com/gorilla-llm/gorilla-cli for examples and to learn more!
 ===***==="""
 
+
+def generate_random_uid():
+    return str(uuid.uuid4())
+
+def get_git_email():
+    return subprocess.check_output(["git", "config", "--global", "user.email"]).decode("utf-8").strip()
+
+def get_system_info():
+    return platform.system()
+
+def write_uid_to_file(uid):
+    with open(USERID_FILE, "w") as f:
+        f.write(uid)
+
+def append_to_bash_history(selected_command):
+    try:
+        with open(os.path.expanduser("~/.bash_history"), "a") as history_file:
+            history_file.write(selected_command + '\n')
+    except Exception as e:
+        pass
+
+
+
+
+def prefill_shell_cmd(cmd):
+    # Inspired from 
+    stdin = 0
+    # Save TTY attributes for stdin
+    oldattr = termios.tcgetattr(stdin)
+    # Create new attributes to fake input
+    newattr = termios.tcgetattr(stdin)
+    # Disable echo in stdin -> only inject cmd in stdin queue (with TIOCSTI)
+    newattr[3] &= ~termios.ECHO
+    # Enable non-canonical mode -> ignore special editing characters
+    newattr[3] &= ~termios.ICANON
+    # Use the new attributes
+    termios.tcsetattr(stdin, termios.TCSANOW, newattr)
+    # Write the selected command in stdin queue
+    for c in cmd:
+        fcntl.ioctl(stdin, termios.TIOCSTI, c)
+    # Restore TTY attributes for stdin
+    termios.tcsetattr(stdin, termios.TCSADRAIN, oldattr)
+
+
+def raise_issue(title, body):
+    issue_title = urllib.parse.quote(title)
+    issue_body = urllib.parse.quote(body)
+    issue_url = f"{ISSUE_URL}?title={issue_title}&body={issue_body}"
+    print(f"If the problem persists, please raise an issue: {issue_url}")
 
 def check_for_updates():
     # Check if a new version of gorilla-cli is available once a day
@@ -123,6 +178,32 @@ def get_user_id():
     
     return user_id
 
+def format_command(input_str):
+    """
+    Standardize commands to be stored with a newline
+    character in the history
+    """
+    if not input_str.endswith('\n'):
+        input_str += '\n'
+    return input_str
+
+def append_string_to_file_if_missing(file_path, target_string):
+    """
+    Don't append command to history file if it already exists.
+    """
+    try:
+        with open(file_path, 'r') as file:
+            lines = file.readlines()
+
+        # Check if the target string is already in the file
+        if target_string not in lines[-HISTORY_LENGTH:]:
+            with open(file_path, 'a') as file:
+                file.write(target_string)
+    except FileNotFoundError:
+        # If the file doesn't exist, create it and append the string
+        with open(file_path, 'w') as file:
+            file.write(target_string)
+
 
 def specify_models(ctx, param, file_path):
     # By default, Gorilla-CLI combines the capabilities of multiple Language Learning Models.
@@ -164,13 +245,18 @@ def reset_models(ctx, param, value):
 
 
 def execute_command(cmd):
-        process = subprocess.run(cmd, shell=True, stderr=subprocess.PIPE)
-        error_msg = process.stderr.decode("utf-8", "ignore")
-        if error_msg:
-            print(f"{error_msg}")
-            return error_msg
-        return str(process.returncode)
+    cmd = format_command(cmd)
+    process = subprocess.run(cmd, shell=True, stderr=subprocess.PIPE)
 
+    save = not cmd.startswith(':')
+    if save:
+        append_string_to_file_if_missing(HISTORY_FILE, cmd)
+
+    error_msg = process.stderr.decode("utf-8", "ignore")
+    if error_msg:
+        print(f"{error_msg}")
+        return error_msg
+    return str(process.returncode)
 
 def load_config():
     # Load the user's configuration file and perform any necessary checks
@@ -186,6 +272,26 @@ def print_version(ctx, param, value):
     click.echo(__version__)
     ctx.exit()
     
+def get_history_commands(ctx, param, value):
+    """
+    Takes in history file
+    Returns None if file doesn't exist or empty
+    Returns list of last 10 history commands in the file if it exists
+    """
+    if not value or ctx.resilient_parsing:
+        return
+    history_file = HISTORY_FILE
+    if os.path.isfile(history_file):
+        with open(history_file, 'r') as history:
+            lines = history.readlines()
+            if not lines:
+                click.echo("No command history.")
+            else:
+                click.echo(lines[-HISTORY_LENGTH:])
+    else:
+        click.echo("No command history.")
+    ctx.exit()
+    
 
 @click.command()
 @click.option('--user_id', '--u', default=get_user_id(), help="User id [default: 'git config --global user.email' OR random uuid]")
@@ -196,6 +302,7 @@ def print_version(ctx, param, value):
               help = "Reset models configuration")
 @click.option('--model', '-m', help = "Prompt Gorilla CLI to only use the specified model")
 @click.option('--version', help = "Return the version of GORILLA_CLI", is_flag=True, callback= print_version, expose_value=False, is_eager=True)
+@click.option('--history', help = "Display command history", is_flag=True, callback= get_history_commands, expose_value=False, is_eager=True)
 @click.argument('prompt', nargs = -1)
 def main(
     user_id,
@@ -221,15 +328,18 @@ def main(
     else:
         chosen_models = None
 
-    user_input = " ".join(prompt)
-
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
 
+    args = sys.argv[1:]
+    user_input = " ".join(args)
+    user_id = get_user_id()
+    system_info = get_system_info()
     data_json = {
                 "user_id": user_id,
                 "user_input": user_input,
                 "interaction_id": interaction_id,
+                "system_info": system_info
             }
     if chosen_models:
         data_json["models"] = chosen_models
@@ -248,13 +358,14 @@ def main(
 
     if commands:
         selected_command = go_questionary.select(
-            "", choices=commands, instruction=""
+            "", choices=commands, instruction="Welcome to Gorilla. Use arrow keys to select. Ctrl-C to Exit"
         ).ask()
 
         if not selected_command:
             # happens when Ctrl-C is pressed
             return
         exit_condition = execute_command(selected_command)
+
         json = {
                 "user_id": user_id,
                 "command": selected_command,
@@ -262,6 +373,12 @@ def main(
                 "interaction_id": interaction_id,
             }
         
+        
+        # Append command to bash history
+        if system_info == "Linux":
+            append_to_bash_history(selected_command)
+            prefill_shell_cmd(selected_command)
+
         # Commands failed / succeeded?
         try:
             response = requests.post(
@@ -273,7 +390,6 @@ def main(
                 print("Failed to send command execution result to the server.")
         except requests.exceptions.Timeout:
             print("Failed to send command execution result to the server: Timeout.")
-
 
 if __name__ == "__main__":
     main()
