@@ -26,7 +26,7 @@ import urllib.parse
 import sys
 from halo import Halo
 import go_questionary
-
+from utils import personalize
 __version__ = "0.0.11"  # current version
 SERVER_URL = "https://cli.gorilla-llm.com"
 UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
@@ -231,6 +231,15 @@ def main():
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
 
+
+    personalized_input = f"""
+    Some relevant context about my history:
+    {personalize(user_input, get_history_commands(HISTORY_FILE), False)}
+
+    The query of the user is:
+    {user_input}
+    """
+
     if args.history:
         commands = get_history_commands(HISTORY_FILE)
     else:
@@ -238,7 +247,7 @@ def main():
             try:
                 data_json = {
                     "user_id": user_id,
-                    "user_input": user_input,
+                    "user_input": personalized_input,
                     "interaction_id": interaction_id,
                     "system_info": system_info
                 }
