@@ -27,7 +27,7 @@ import sys
 from halo import Halo
 import go_questionary
 from utils import personalize
-__version__ = "0.0.11"  # current version
+__version__ = "0.0.12"  # current version
 SERVER_URL = "https://cli.gorilla-llm.com"
 UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
 USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
@@ -37,6 +37,7 @@ GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
 HISTORY_LENGTH = 10
 WELCOME_TEXT = f"""===***===
 {GORILLA_EMOJI}Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
+
 
 Simply use `gorilla <your desired operation>` and Gorilla will do the rest. For instance:
     gorilla generate 100 random characters into a file called test.txt
@@ -157,6 +158,16 @@ def get_user_id():
             print(f"Using a temporary UID {user_id} for now.")
             return user_id
 
+def request_personalization():
+    # ask the user if they want to personalize their bash history - depending on the Y/n response, set the personalize flag to true/false
+    response = input("Do you want to personalize your bash history? [Y/n]: ").strip().lower()
+    if response in ["n", "no"]:
+        print("We won't use your bash history to personalize your queries. You can always turn this feature on in the future!")
+        return (False, None)
+    print("We're going to be using your bash history to personalize your queries. This feature will require OpenAI API access, so enter your API key when prompted below. You can always turn this feature off in the future!")
+    open_ai_key = input("Enter your OpenAI API key: ").strip()
+    return (True, open_ai_key)
+
 def format_command(input_str):
     """
     Standardize commands to be stored with a newline
@@ -219,6 +230,7 @@ def main():
     user_input = " ".join(args)
     user_id = get_user_id()
     system_info = get_system_info()
+    personalize_request = request_personalization()
 
 
     # Parse command-line arguments
@@ -231,15 +243,9 @@ def main():
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
 
-
-    personalized_input = f"""
-    Some relevant context about my history:
-    {personalize(user_input, get_history_commands(HISTORY_FILE), False)}
-
-    The query of the user is:
-    {user_input}
-    """
-
+    personalized_history = personalize(user_input, get_history_commands(HISTORY_FILE), personalize_request[1], False) if personalize_request[0] else None
+    print (personalized_history)
+    
     if args.history:
         commands = get_history_commands(HISTORY_FILE)
     else:
@@ -247,7 +253,8 @@ def main():
             try:
                 data_json = {
                     "user_id": user_id,
-                    "user_input": personalized_input,
+                    #"synthesized_history": personalized_history,
+                    "user_input": user_input,
                     "interaction_id": interaction_id,
                     "system_info": system_info
                 }

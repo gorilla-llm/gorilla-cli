@@ -6,16 +6,6 @@ import json
 from pprint import pprint
 from openai import OpenAI
 
-client = OpenAI(api_key=os.getenv("OPENAI_KEY"))
-
-"""
-
-1. Remove duplicates
-2. Make PI removal an optional flag
-
-"""
-
-
 def get_bash_history():
     history_file = os.path.expanduser("~/.bash_history")
     prev_operations = ""
@@ -45,7 +35,7 @@ def stringify_bash_history(operations: list[str]):
     return "\n".join(operations)
 
 
-def synthesize_bash_history(desired_operation, gorila_history, history):
+def synthesize_bash_history(client, desired_operation, gorila_history, history):
     SYSTEM_PROMPT = """
 You are an assistant for a developer who wants to find the right API call for a specific task. 
 The developer has bash history that contains the command they used to perform a task.
@@ -78,9 +68,10 @@ Use this information to provide the model with a short paragraph of possible rel
     return response.choices[0].message.content
 
 
-def personalize(query, gorilla_history, pi_removal=True):
+def personalize(query, gorilla_history, open_ai_key, pi_removal=True):
     history = stringify_bash_history(remove_duplicates(get_bash_history()))
+    client = OpenAI(api_key=open_ai_key)
     if pi_removal:
         history = anonymize_bash_history(history)
-    summary = synthesize_bash_history(query, gorilla_history, history)
+    summary = synthesize_bash_history(client, query, gorilla_history, history)
     return summary
