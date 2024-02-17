@@ -28,7 +28,10 @@ import urllib.parse
 import sys
 from halo import Halo
 import go_questionary
-from utils import personalize
+from personalization.personalize import GorillaPersonalizer
+from personalization.setup import PersonalizationSetup
+
+
 __version__ = "0.0.12"  # current version
 SERVER_URL = "https://cli.gorilla-llm.com"
 UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
@@ -133,8 +136,32 @@ def check_for_updates():
         except Exception as e:
             print("Unable to write update check file:", e)
 
+def setup_config_file(user_id):
+    config_json = { "user_id": user_id }
+    with open(CONFIG_FILE, "w") as config_file:
+        json.dump(config_json, config_file)
 
 def get_user_id():
+    if os.path.isfile(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as config_file:
+            try:
+                config_json = json.load(config_file)
+                if "user_id" not in config_json:
+                    user_id = get_user_id_deprecated()
+                    setup_config_file(user_id)
+                    return get_user_id_deprecated()
+                else: 
+                    return config_json["user_id"] 
+            except:
+                user_id = get_user_id_deprecated()
+                setup_config_file(user_id)
+                return get_user_id_deprecated
+    else:
+        user_id = get_user_id_deprecated()
+        setup_config_file(user_id)
+        return get_user_id_deprecated()
+
+def get_user_id_deprecated():
     # Unique user identifier for authentication and load balancing
     # Gorilla-CLI is hosted by UC Berkeley Sky lab for FREE as a
     #  research prototype. Please don't spam the system or use it
@@ -168,15 +195,6 @@ def get_user_id():
             print(f"Using a temporary UID {user_id} for now.")
             return user_id
 
-def request_personalization():
-    # ask the user if they want to personalize their bash history - depending on the Y/n response, set the personalize flag to true/false
-    response = input("Do you want to personalize your bash history? [Y/n]: ").strip().lower()
-    if response in ["n", "no"]:
-        print("We won't use your bash history to personalize your queries. You can always turn this feature on in the future!")
-        editPersonalizationSettings(False)
-    print("We're going to be using your bash history to personalize your queries. This feature will require OpenAI API access, so enter your API key when prompted below. You can always turn this feature off in the future!")
-    editPersonalizationSettings(True)
-
 def format_command(input_str):
     """
     Standardize commands to be stored with a newline
@@ -203,95 +221,9 @@ def append_string_to_file_if_missing(file_path, target_string):
         with open(file_path, 'w') as file:
             file.write(target_string)
 
-def checkOpenAIAPIValidity(openai_key: str):
-    try:
-        client = OpenAI(api_key=openai_key)
-        client.models.list()
-    except Exception as e:
-        return False
-    return True
-
-def changeOpenAIKey():
-    new_key = str(input("Enter your new OpenAI API key: ")).strip()
-    while not checkOpenAIAPIValidity(new_key):
-        response = str(input("The API key you entered is invalid. Do you want to try again? [Y/n]: ")).strip().lower()
-        if response in ["n", "no"]:
-            return False
-        else:
-            new_key = str(input("Enter your new OpenAI API key: ")).strip()
-    return new_key
-
-# this allows you to edit your personalization settings - optional variable is the key for open ai
-def editPersonalizationSettings(permission: bool):
-    if os.path.isfile(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as config_file:
-            try:
-                config_json = json.load(config_file)
-            except:
-                config_json = {}
-            if "personalization" in config_json:
-                if config_json["personalization"]["permission"] and permission:
-                    current_key = config_json["personalization"]["api_key"]
-                    res = input(f"You are already using the the following API key:\n\n{current_key}\n\nDo you want to change it?").strip().lower()
-                    if res in ["n", "no"]:
-                        print ("You're all set.")
-                    else:
-                        api_key = changeOpenAIKey()
-                        if api_key:
-                            print ("We successfully updated your API key.")
-                            config_json["personalization"]["permission"] = True
-                            config_json["personalization"]["api_key"] = api_key
-                            
-                        else:
-                            print("You didn't provide a valid API key, so we didn't update your settings.")
-                elif not config_json["personalization"]["permission"] and not permission:
-                    print ("You already have personalization disabled. You're good to go!")
-                elif config_json["personalization"]["permission"] and not permission:
-                    print ("We turned off personalization for you.")
-                    config_json["personalization"]["permission"] = False
-                    config_json["personalization"]["api_key"] = None
-                else:
-                    api_key = changeOpenAIKey()
-                    if api_key:
-                        print ("We successfully added your API key.")
-                        config_json["personalization"]["api_key"] = api_key
-                        config_json["personalization"]["permission"] = True
-                    else:
-                        print("You didn't provide a valid API key, so we didn't update your settings.")
-                        config_json["personalization"]["permission"] = False
-                        config_json["personalization"]["api_key"] = None
-            else:
-                if permission:
-                    api_key = changeOpenAIKey()
-                    if api_key:
-                        print ("We successfully added your API key.")
-                        config_json["personalization"] = {"permission": True, "api_key": api_key}
-                    else:
-                        print("You didn't provide a valid API key, so we didn't update your settings.")
-                        config_json["personalization"] = {"permission": False, "api_key": None}
-                else:
-                    print ("We turned off personalization for you.")
-                    config_json["personalization"] = {"permission": False, "api_key": None}
-    else:
-        if permission:
-            api_key = changeOpenAIKey()
-            if api_key:
-                print ("We successfully added your API key.")
-                config_json = {"personalization": {"permission": True, "api_key": api_key}}
-            else:
-                print("You didn't provide a valid API key, so we didn't update your settings.")
-                config_json = {"personalization": {"permission": False, "api_key": None}}
-        else:
-            print ("We turned off personalization for you.")
-            config_json = {"personalization": {"permission": False, "api_key": None}}
-    
-    with open(CONFIG_FILE, "w") as config_file:
-        json.dump(config_json, config_file)
-                
 
                     
 
-   
 
 def main():
     def execute_command(cmd):
@@ -328,8 +260,12 @@ def main():
     user_input = " ".join(args)
     user_id = get_user_id()
     system_info = get_system_info()
-    personalization = False
-    open_ai_key = None
+
+    personalization_setup = PersonalizationSetup()
+    # personalization_setup.request_personalization()
+    personalization = personalization_setup.personalization
+    open_ai_key = personalization_setup.open_ai_key
+    
     personalized_history = None
 
 
@@ -343,37 +279,16 @@ def main():
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
 
-    request_personalization()
-    # open the config file and check if the user has personalized their bash history
-    if os.path.isfile(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as config_file:
-            try:
-                config_json = json.load(config_file)
-                print (config_json)
-            except:
-                request_personalization()
-                config_json = json.load(config_file)
-            if config_json["personalization"]["permission"]:
-                    personalization = True
-                    open_ai_key = config_json["personalization"]["api_key"]
-    else:
-        request_personalization()
-        if config_json["personalization"]["permission"]:
-                personalization = True
-                open_ai_key = config_json["personalization"]["api_key"]
-
-    print (personalization)
-    print (open_ai_key)
-
+    
 
     commands = []
     if args.history:
         commands = get_history_commands(HISTORY_FILE)
 
-
-    if (personalization):
-        personalized_history = personalize(user_input, commands, open_ai_key, False)
-        print(personalized_history)
+    if personalization:
+        personalizer = GorillaPersonalizer(open_ai_key)
+        personalized_history = personalizer.personalize(user_input, commands)
+        print (personalized_history)
 
     
     else:
