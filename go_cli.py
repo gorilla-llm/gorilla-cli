@@ -19,6 +19,8 @@ import uuid
 import fcntl
 import platform
 import requests
+from openai import OpenAI
+import json
 import subprocess
 import argparse
 import termios
@@ -26,17 +28,22 @@ import urllib.parse
 import sys
 from halo import Halo
 import go_questionary
+from personalization.personalize import GorillaPersonalizer
+from personalization.setup import PersonalizationSetup
 
-__version__ = "0.0.11"  # current version
+
+__version__ = "0.0.12"  # current version
 SERVER_URL = "https://cli.gorilla-llm.com"
 UPDATE_CHECK_FILE = os.path.expanduser("~/.gorilla-cli-last-update-check")
 USERID_FILE = os.path.expanduser("~/.gorilla-cli-userid")
 HISTORY_FILE = os.path.expanduser("~/.gorilla_cli_history")
+CONFIG_FILE = os.path.expanduser("~/.gorilla-cli-config.json")
 ISSUE_URL = f"https://github.com/gorilla-llm/gorilla-cli/issues/new"
 GORILLA_EMOJI = "🦍 " if go_questionary.try_encode_gorilla() else ""
 HISTORY_LENGTH = 10
 WELCOME_TEXT = f"""===***===
 {GORILLA_EMOJI}Welcome to Gorilla-CLI! Enhance your Command Line with the power of LLMs! 
+
 
 Simply use `gorilla <your desired operation>` and Gorilla will do the rest. For instance:
     gorilla generate 100 random characters into a file called test.txt
@@ -53,6 +60,13 @@ Visit github.com/gorilla-llm/gorilla-cli for examples and to learn more!
 
 def generate_random_uid():
     return str(uuid.uuid4())
+
+def load_config():
+    # Load the user's configuration file and perform any necessary checks
+    if os.path.isfile(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as config_file:
+            config_json = json.load(config_file)
+    return config_json
 
 def get_git_email():
     return subprocess.check_output(["git", "config", "--global", "user.email"]).decode("utf-8").strip()
@@ -122,8 +136,32 @@ def check_for_updates():
         except Exception as e:
             print("Unable to write update check file:", e)
 
+def setup_config_file(user_id):
+    config_json = { "user_id": user_id }
+    with open(CONFIG_FILE, "w") as config_file:
+        json.dump(config_json, config_file)
 
 def get_user_id():
+    if os.path.isfile(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as config_file:
+            try:
+                config_json = json.load(config_file)
+                if "user_id" not in config_json:
+                    user_id = get_user_id_deprecated()
+                    setup_config_file(user_id)
+                    return get_user_id_deprecated()
+                else: 
+                    return config_json["user_id"] 
+            except:
+                user_id = get_user_id_deprecated()
+                setup_config_file(user_id)
+                return get_user_id_deprecated
+    else:
+        user_id = get_user_id_deprecated()
+        setup_config_file(user_id)
+        return get_user_id_deprecated()
+
+def get_user_id_deprecated():
     # Unique user identifier for authentication and load balancing
     # Gorilla-CLI is hosted by UC Berkeley Sky lab for FREE as a
     #  research prototype. Please don't spam the system or use it
@@ -184,6 +222,9 @@ def append_string_to_file_if_missing(file_path, target_string):
             file.write(target_string)
 
 
+                    
+
+
 def main():
     def execute_command(cmd):
         cmd = format_command(cmd)
@@ -220,6 +261,13 @@ def main():
     user_id = get_user_id()
     system_info = get_system_info()
 
+    personalization_setup = PersonalizationSetup()
+    # personalization_setup.request_personalization()
+    personalization = personalization_setup.personalization
+    open_ai_key = personalization_setup.open_ai_key
+    
+    personalized_history = None
+
 
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Gorilla CLI Help Doc")
@@ -231,13 +279,24 @@ def main():
     # Generate a unique interaction ID
     interaction_id = str(uuid.uuid4())
 
+    
+
+    commands = []
     if args.history:
         commands = get_history_commands(HISTORY_FILE)
+
+    if personalization:
+        personalizer = GorillaPersonalizer(open_ai_key)
+        personalized_history = personalizer.personalize(user_input, commands)
+        print (personalized_history)
+
+    
     else:
         with Halo(text=f"{GORILLA_EMOJI}Loading", spinner="dots"):
             try:
                 data_json = {
                     "user_id": user_id,
+                    #"synthesized_history": personalized_history,
                     "user_input": user_input,
                     "interaction_id": interaction_id,
                     "system_info": system_info
