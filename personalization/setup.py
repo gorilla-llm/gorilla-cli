@@ -129,7 +129,9 @@ class PersonalizationSetup:
         self.populatePersonalizationSettings()
 
     def request_personalization(self):
-        # ask the user if they want to personalize their bash history - depending on the Y/n response, set the personalize flag to true/false
+        """ 
+        Ask the user if they want to personalize their bash history - depending on the Y/n response, set the personalize flag to true/false
+        """
         response = input(
             "Do you want to personalize your bash history? [Y/n]: ").strip().lower()
         if response in ["n", "no"]:

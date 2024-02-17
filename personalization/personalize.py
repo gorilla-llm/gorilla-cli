@@ -99,7 +99,6 @@ class GorillaPersonalizer:
 
         """
 
-        print ("PERSONALIZING YOUR STUFF")
         history = self.stringify_bash_history(self.remove_duplicates(self.get_bash_history()))
         if pi_removal:
             history = self.anonymize_bash_history(history)
